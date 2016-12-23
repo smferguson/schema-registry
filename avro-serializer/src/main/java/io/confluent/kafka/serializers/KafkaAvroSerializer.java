@@ -17,19 +17,23 @@ package io.confluent.kafka.serializers;
 
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.commons.io.IOUtils;
 import org.apache.kafka.common.serialization.Serializer;
 import org.json.JSONObject;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.net.URL;
+import java.nio.file.NoSuchFileException;
 import java.util.Map;
 
 public class KafkaAvroSerializer extends AbstractKafkaAvroSerializer implements Serializer<Object> {
 
   private boolean isKey;
 
-  private static String topicSubkey = getTopicSubkey();
+  // TODO: should be conf driven
+  private static final String SERIALIZER_CONFIG = "file:/serializer_config.json";
+  private static final String topicSubkey = getTopicSubkey();
 
   /**
    * Constructor used by Kafka producer.
@@ -49,13 +53,20 @@ public class KafkaAvroSerializer extends AbstractKafkaAvroSerializer implements 
 
   private static String getTopicSubkey() {
     try {
-      String content = new String(Files.readAllBytes(Paths.get("config.json")));
-      JSONObject obj = new JSONObject(content);
-      return obj.get("key_column").toString();
+      URL resource = new URL(SERIALIZER_CONFIG);
+
+      String content = IOUtils.toString(resource.openStream()); // TODO: deprecated call
+      return new JSONObject(content).getString("key_column");
+    } catch (NoSuchFileException | FileNotFoundException e) {
+      System.err.println("************ Could not find config " + SERIALIZER_CONFIG + "                            ************");
+      System.err.println("************ All schemas will be registered with the same endpoint in the schema registry. ************");
+      System.err.println("************ If you are applying schemas to embedded JSON things will break.               ************");
+      System.err.println("************ If you are not you probably don't care.                                       ************");
     } catch (IOException | NullPointerException e) {
-      // TODO: log this
-      return null;
+      throw new RuntimeException(e.toString());
     }
+
+    return null;
   }
 
   @Override
@@ -76,7 +87,7 @@ public class KafkaAvroSerializer extends AbstractKafkaAvroSerializer implements 
     if (isKey) {
       return topic + "-key";
     } else {
-      if (topicSubkey == null) {
+      if (topicSubkey == null || !(record instanceof GenericRecord)) {
         return topic + "-value";
       } else {
         return topic + "-" + ((GenericRecord) record).get(topicSubkey) + "-value";
