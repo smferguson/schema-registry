@@ -32,7 +32,7 @@ public class KafkaAvroSerializer extends AbstractKafkaAvroSerializer implements 
   private boolean isKey;
 
   // TODO: should be conf driven
-  private static final String SERIALIZER_CONFIG = "file:/serializer_config.json";
+  private static final String SERIALIZER_CONFIG = "file:serializer_config.json";
   private static final String topicSubkey = getTopicSubkey();
 
   /**
